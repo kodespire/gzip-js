@@ -4,7 +4,7 @@
 #
 # Run it by hand (Actions > Release > Run workflow) to get the tarball as an
 # artifact without publishing. Tick "publish-dry-run" to also run the publish
-# job with `npm publish --dry-run` and print the identity npm trusted
+# job with `npm stage publish --dry-run` and print the identity npm trusted
 # publishing will check. npm trusted publishing checks this file's name
 # (release.yml).
 #
@@ -20,7 +20,7 @@ on:
   workflow_dispatch:
     inputs:
       publish-dry-run:
-        description: Run the publish job with npm publish --dry-run
+        description: Run the publish job with npm stage publish --dry-run
         type: boolean
         default: false
 
@@ -186,4 +186,7 @@ jobs:
             const { repository, ref, event_name, workflow_ref, job_workflow_ref, environment } = claims;
             console.log(JSON.stringify({ repository, ref, event_name, workflow_ref, job_workflow_ref, environment }, null, 2));
           '
-      - run: npm publish kodespire-gzip-js-*.tgz --access public --provenance ${{ inputs.publish-dry-run && '--dry-run' || '' }}
+      # npm stage publish needs npm 11.15 or later.
+      - run: npm install -g npm@^11.15
+      # Staged: the release waits on npmjs.com until a maintainer approves it with 2FA.
+      - run: npm stage publish ./kodespire-gzip-js-*.tgz --access public --provenance ${{ inputs.publish-dry-run && '--dry-run' || '' }}
