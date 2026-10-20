@@ -1,0 +1,64 @@
+# Weekly: if madler/zlib has published a newer release than deps/zlib is
+# pinned to, open a pull request that moves the submodule to it. CI then runs
+# the full test suite against the new version.
+#
+# Needs "Allow GitHub Actions to create and approve pull requests" enabled in
+# Settings > Actions > General. Pull requests opened with GITHUB_TOKEN do not
+# trigger CI on their own, so the job starts the CI workflow on the branch itself.
+name: Update zlib
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Compare with the latest upstream release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest="$(gh release view -R madler/zlib --json tagName -q .tagName)"
+          latest_sha="$(gh api "repos/madler/zlib/commits/$latest" --jq .sha)"
+          current_sha="$(git -C deps/zlib rev-parse HEAD)"
+          current="v$(sed -n "s/export const ZLIB_VERSION = '\(.*\)';/\1/p" src/version.ts)"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "outdated=$([ "$latest_sha" = "$current_sha" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          echo "pinned: $current ($current_sha), latest: $latest ($latest_sha)"
+      - name: Open a pull request
+        if: steps.check.outputs.outdated == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.check.outputs.latest }}
+          CURRENT: ${{ steps.check.outputs.current }}
+        run: |
+          branch="update-zlib-$LATEST"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
+            echo "branch $branch already exists"; exit 0
+          fi
+          git -C deps/zlib fetch --depth 1 origin tag "$LATEST"
+          git -C deps/zlib checkout "$LATEST"
+          version="${LATEST#v}"
+          sed -i "s/export const ZLIB_VERSION = '.*';/export const ZLIB_VERSION = '$version';/" src/version.ts
+          sed -i "s/zlib v${CURRENT#v}/zlib v$version/g; s/\`'${CURRENT#v}'\`/\`'$version'\`/g" README.md THIRD_PARTY_NOTICES.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add deps/zlib src/version.ts README.md THIRD_PARTY_NOTICES.md
+          git commit -m "Update zlib to $LATEST"
+          git push origin "$branch"
+          gh workflow run ci.yml --ref "$branch"
+          gh pr create --title "Update zlib to $LATEST" --body "Moves deps/zlib from $CURRENT to [$LATEST](https://github.com/madler/zlib/releases/tag/$LATEST). CI runs the full suite against it. Check the ChangeLog for changes to defaults or limits (src/version.ts, src/options.ts) before merging."
