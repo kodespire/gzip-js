@@ -1,6 +1,7 @@
 // Tests run against the built package in dist/ (what users get), once per backend.
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crc32 } from 'node:zlib';
 
@@ -19,7 +20,6 @@ export const FORMATS: Format[] = ['gzip', 'zlib', 'deflate-raw'];
 
 const fixturesDir = join(import.meta.dirname, 'fixtures');
 export const fixture = (name: string): Buffer => readFileSync(join(fixturesDir, name));
-export const fixturePath = (name: string): string => join(fixturesDir, name);
 
 // ---- external reference implementations -------------------------------------
 
@@ -38,20 +38,31 @@ export const python: string | undefined = ['python3', 'python'].find((cmd) =>
   works(cmd, ['-I', '-c', 'import sys, zlib; sys.exit(0 if sys.version_info[0] == 3 else 1)']),
 );
 
-export function run(command: string, args: string[], input: Uint8Array): Uint8Array {
-  const r = spawnSync(command, args, { input, maxBuffer: 1 << 30, timeout: 60_000 });
-  if (r.status !== 0) {
-    throw new Error(`${command} ${args.slice(0, 2).join(' ')} failed (${r.error?.message ?? r.signal ?? `exit ${r.status}`}): ${r.stderr}`);
+// Input goes through a temporary file, not stdin: on macOS runners a child reading spawnSync's
+// stdin pipe now and then never saw end-of-file, and hung until the timeout.
+/** Runs `command ...args <file>` with `input` in the file (named with `suffix`), and returns stdout. */
+export function run(command: string, args: string[], input: Uint8Array, suffix = '.bin'): Uint8Array {
+  const dir = mkdtempSync(join(tmpdir(), 'gzip-js-test-'));
+  const file = join(dir, `input${suffix}`);
+  try {
+    writeFileSync(file, input);
+    const r = spawnSync(command, [...args, file], { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 1 << 30, timeout: 60_000 });
+    if (r.status !== 0) {
+      throw new Error(`${command} ${args.slice(0, 2).join(' ')} failed (${r.error?.message ?? r.signal ?? `exit ${r.status}`}): ${r.stderr}`);
+    }
+    return new Uint8Array(r.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
-  return new Uint8Array(r.stdout);
 }
 
 // Python's zlib, driven through compressobj/decompressobj so every parameter is explicit.
 // decompress exits 3 unless the input is exactly one complete stream.
 const PY_ZLIB = `
 import sys, zlib
-op, wbits, level, mem, strategy, zdict = sys.argv[1:7]
-data = sys.stdin.buffer.read()
+op, wbits, level, mem, strategy, zdict, path = sys.argv[1:8]
+with open(path, 'rb') as f:
+    data = f.read()
 kw = {'zdict': bytes.fromhex(zdict)} if zdict else {}
 if op == 'c':
     c = zlib.compressobj(int(level), zlib.DEFLATED, int(wbits), int(mem), int(strategy), **kw)

@@ -56,7 +56,7 @@ describe.each(backends)('%s backend: decodes fixtures from gzip and Python', (_n
 });
 
 describe.skipIf(!gzipCli && !requireInterop).each(backends)('%s backend: system gzip, both ways', (_name, z) => {
-  const gunzip = (data: Uint8Array) => run('gzip', ['-d', '-c'], data);
+  const gunzip = (data: Uint8Array) => run('gzip', ['-d', '-c'], data, '.gz');
 
   it.each([
     {},
@@ -71,7 +71,7 @@ describe.skipIf(!gzipCli && !requireInterop).each(backends)('%s backend: system 
     const src = textBytes(500_000, 101);
     const member = z.compressSync(src, o);
     expect(gunzip(member)).toEqualBytes(src);
-    run('gzip', ['-t'], member); // exit status 0: integrity check passed
+    run('gzip', ['-t'], member, '.gz'); // exit status 0: integrity check passed
   });
 
   it('gzip -d decodes our streamed output and our multi-member output', async () => {
@@ -84,7 +84,7 @@ describe.skipIf(!gzipCli && !requireInterop).each(backends)('%s backend: system 
 
   it.each([['-1'], ['-6'], ['-9'], ['-n', '-9']])('we decode gzip %s', async (...args) => {
     const src = concat(textBytes(300_000, 7), randomBytes(20_000, 8));
-    const member = run('gzip', ['-c', ...args], src);
+    const member = run('gzip', ['-c', ...args], src, '.txt');
     expect(z.decompressSync(member)).toEqualBytes(src);
     expect(await pipeChunks(z.createDecompressStream(), member, () => 4096)).toEqualBytes(src);
   });

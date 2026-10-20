@@ -7,11 +7,16 @@
 # job with `npm publish --dry-run` and print the identity npm trusted
 # publishing will check. npm trusted publishing checks this file's name
 # (release.yml).
+#
+# A pull request that changes this file runs everything except publishing, so
+# a change to the release pipeline is tested before it is merged.
 name: Release
 
 on:
   push:
     tags: ['v*']
+  pull_request:
+    paths: [.github/workflows/release.yml]
   workflow_dispatch:
     inputs:
       publish-dry-run:
