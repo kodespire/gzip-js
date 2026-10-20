@@ -53,7 +53,7 @@ jobs:
           git -C deps/zlib checkout "$LATEST"
           version="${LATEST#v}"
           sed -i "s/export const ZLIB_VERSION = '.*';/export const ZLIB_VERSION = '$version';/" src/version.ts
-          sed -i "s/zlib v${CURRENT#v}/zlib v$version/g" README.md THIRD_PARTY_NOTICES.md
+          sed -i "s/zlib v${CURRENT#v}/zlib v$version/g; s/\`'${CURRENT#v}'\`/\`'$version'\`/g" README.md THIRD_PARTY_NOTICES.md
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$branch"
