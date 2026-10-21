@@ -1,6 +1,6 @@
 // Node.js and Bun entry: the native addon, falling back to WebAssembly when no
 // prebuilt binary matches this platform. Set GZIP_JS_BACKEND=wasm to force WebAssembly.
-// Keep the export list in sync with entry-wasm.ts and entry-workerd.js.
+// Keep the export list in sync with entry-wasm.ts, entry-workerd.js and entry-react-native.ts.
 import { createApi } from './api.js';
 import { compileWasm, compileWasmSync } from './load-wasm-node.js';
 import { loadNativeBackend } from './native-backend.js';
@@ -24,6 +24,7 @@ function tryNative(): Backend | undefined {
 const provider: BackendProvider = {
   get: async () => tryNative() ?? wasm.get(),
   getSync: () => tryNative() ?? wasm.getSync(),
+  ready: () => tryNative() ?? wasm.ready(),
   init: async (source) => {
     if (!tryNative()) await wasm.init(source);
   },

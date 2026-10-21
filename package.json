@@ -1,7 +1,7 @@
 {
   "name": "@kodespire/gzip-js",
-  "version": "0.1.0",
-  "description": "Gzip, zlib and raw deflate for Node.js, Bun, Deno, browsers and edge runtimes. Native bindings to the official madler/zlib library with a WebAssembly fallback.",
+  "version": "0.2.0",
+  "description": "Gzip, zlib and raw deflate for Node.js, Bun, Deno, browsers, edge runtimes and React Native. Native bindings to the official madler/zlib library with a WebAssembly fallback.",
   "keywords": [
     "gzip",
     "gunzip",
@@ -12,7 +12,8 @@
     "decompression",
     "wasm",
     "napi",
-    "stream"
+    "stream",
+    "react-native"
   ],
   "license": "MIT",
   "author": "kodespire",
@@ -34,6 +35,7 @@
       "workerd": "./dist/entry-workerd.js",
       "deno": "./dist/entry-wasm.js",
       "browser": "./dist/entry-wasm.js",
+      "react-native": "./dist/entry-react-native.js",
       "node": "./dist/entry-node.js",
       "default": "./dist/entry-wasm.js"
     },
@@ -49,6 +51,7 @@
     "#load-wasm": {
       "types": "./dist/load-wasm-fetch.d.ts",
       "node": "./dist/load-wasm-node.js",
+      "react-native": "./dist/load-wasm-react-native.js",
       "default": "./dist/load-wasm-fetch.js"
     }
   },
@@ -56,7 +59,22 @@
   "files": [
     "dist",
     "prebuilds",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "cpp",
+    "csrc/gjs.c",
+    "csrc/gjs.h",
+    "csrc/zconf.h",
+    "ios",
+    "android/build.gradle",
+    "android/CMakeLists.txt",
+    "android/src",
+    "codegen",
+    "KodespireGzip.podspec",
+    "react-native.config.js",
+    "deps/zlib/LICENSE",
+    "deps/zlib/{crc32,deflate,gzguts,inffast,inffixed,inflate,inftrees,trees,zlib,zutil}.h",
+    "deps/zlib/zconf.h.in",
+    "deps/zlib/{adler32,crc32,deflate,inffast,inflate,inftrees,trees,zutil}.c"
   ],
   "scripts": {
     "build": "npm run build:native && npm run build:wasm && npm run build:ts",
@@ -69,8 +87,29 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "codegenConfig": {
+    "name": "KodespireGzipSpec",
+    "type": "modules",
+    "jsSrcsDir": "codegen",
+    "android": {
+      "javaPackageName": "com.kodespire.gzip"
+    },
+    "ios": {
+      "modulesProvider": {
+        "KodespireGzip": "KodespireGzipModuleProvider"
+      }
+    }
+  },
   "dependencies": {
     "node-gyp-build": "^4.8.4"
+  },
+  "peerDependencies": {
+    "react-native": "*"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "^26.6.5",

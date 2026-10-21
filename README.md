@@ -1,12 +1,13 @@
 # gzip-js
 
 [![CI](https://github.com/kodespire/gzip-js/actions/workflows/ci.yml/badge.svg)](https://github.com/kodespire/gzip-js/actions/workflows/ci.yml)
+[![React Native](https://github.com/kodespire/gzip-js/actions/workflows/react-native.yml/badge.svg)](https://github.com/kodespire/gzip-js/actions/workflows/react-native.yml)
 
-Gzip, zlib and raw deflate for Node.js, Bun, Deno, browsers and edge runtimes, with one API everywhere.
+Gzip, zlib and raw deflate for Node.js, Bun, Deno, browsers, edge runtimes and React Native, with one API everywhere.
 
 - **The official library.** Compiled from zlib v1.3.2 ([madler/zlib](https://github.com/madler/zlib)), pinned as a git submodule. A weekly job opens a PR when upstream releases.
-- **Native where possible, WebAssembly everywhere else.** Node.js and Bun use a Node-API addon. Browsers, Deno and Workers use WebAssembly built from the same C code. If no prebuilt binary matches your platform, the package switches to WebAssembly on its own.
-- **Same bytes everywhere.** Both builds produce identical output for the same input and options, on every platform.
+- **Native where possible, WebAssembly everywhere else.** Node.js and Bun use a Node-API addon, and React Native uses a JSI module. Browsers, Deno and Workers use WebAssembly built from the same C code. If no prebuilt binary matches your platform, the package switches to WebAssembly on its own.
+- **Same bytes everywhere.** Every build produces identical output for the same input and options, on every platform.
 - **No install scripts.** Prebuilt binaries ship inside the package. `npm install` never downloads or compiles anything.
 - **Never returns partial data.** Cut-off input, corrupt input, unexpected bytes after the end and output over your size limit all throw. They never return what was decoded so far.
 
@@ -46,7 +47,7 @@ The data is never sniffed: decompressing with the wrong `format` throws `ERR_GZI
 
 ### Streams
 
-`createCompressStream()` and `createDecompressStream()` return standard [`TransformStream`](https://developer.mozilla.org/docs/Web/API/TransformStream)s, which work in every runtime:
+`createCompressStream()` and `createDecompressStream()` return standard [`TransformStream`](https://developer.mozilla.org/docs/Web/API/TransformStream)s, which work in every runtime (bare React Native needs a polyfill, [see below](#react-native)):
 
 ```js
 const response = await fetch(url);
@@ -85,6 +86,21 @@ import { init, compressSync } from '@kodespire/gzip-js';
 await init();
 const packed = compressSync('hello');
 ```
+
+### React Native
+
+```sh
+npm install @kodespire/gzip-js
+cd ios && pod install
+```
+
+Then rebuild the app (`npx react-native run-ios`, `run-android`, or `npx expo run:ios` and `run:android`). The package contains a C++ TurboModule compiled from the same C code as the other builds, including its own copy of zlib: iOS and Android ship a system libz, but the module never uses it, so `ZLIB_VERSION` and the output bytes are the same as everywhere else. Autolinking adds it to the iOS build (CocoaPods) and the Android build (CMake). It needs React Native 0.84 or later with the New Architecture, which is the default. The API, options and error codes are the same as everywhere else.
+
+- **Expo:** works in development builds and EAS builds. **Expo Go can't load it**, because Expo Go only contains Expo's own native code. In Expo Go, calls reject with `ERR_GZIP_NOT_INITIALIZED` and a message saying so. There's no fallback: Hermes has no WebAssembly.
+- **Async calls run on background threads**, so `await compress(bigFile)` doesn't block the JS thread. The sync versions run on the JS thread.
+- **Streams need a `TransformStream`**, and Hermes doesn't have one. Expo installs one. In bare React Native, install [web-streams-polyfill](https://github.com/MattiasBuelens/web-streams-polyfill) and `import 'web-streams-polyfill/polyfill'` once at startup. Without it, `createCompressStream()` throws a `TypeError` that says this. The package doesn't bundle a polyfill: React Native's `fetch` doesn't stream bodies, so there's little to pipe, Expo already ships one, and a second copy would add about 65 KB to every app.
+- **Web (Expo web, react-native-web):** the web build gets the WebAssembly version, like any browser build. Metro doesn't copy `gzip.wasm`, so put `node_modules/@kodespire/gzip-js/dist/gzip.wasm` in your `public/` folder and call `await init('/gzip.wasm')` before the first call.
+- **iOS 27 and the React Native 0.84 template:** apps made from the 0.84 template have no UIScene lifecycle (no `SceneDelegate`), and iOS 27 stops such apps at launch. This happens with or without gzip-js. Move the app to a scene delegate, as the example app does in [`SceneDelegate.swift`](example/react-native/ios/GzipExample/SceneDelegate.swift) (with `UIApplicationSceneManifest` in its `Info.plist`), or start from the 0.88 template, which has one.
 
 ### Untrusted input
 
@@ -188,11 +204,11 @@ An unknown option name throws a `TypeError`. A typo like `{ compressionLevel: 9 
 
 ## Behaviour details
 
-- **Output doesn't depend on the runtime.** gzip members get a fixed header: no file name or comment, MTIME 0, and OS 255 ("unknown"). Without that, zlib writes the build platform's OS code, and output would differ between macOS, Linux, Windows and WebAssembly. The native and WebAssembly builds produce the same bytes, which the tests check across formats, levels and strategies.
+- **Output doesn't depend on the runtime.** gzip members get a fixed header: no file name or comment, MTIME 0, and OS 255 ("unknown"). Without that, zlib writes the build platform's OS code, and output would differ between macOS, Linux, Windows and WebAssembly. The native, React Native and WebAssembly builds produce the same bytes, which the tests check across formats, levels and strategies (the React Native self-test against `gzip.wasm`'s output).
 - **Streaming gives the same bytes as one-shot compression,** however the input is split, at levels 1 to 9. At level 0 the stored blocks follow the chunks you write; the data decompresses the same either way.
-- **The async functions use separate threads only on the native addon**, which runs them on Node's thread pool. The WebAssembly backend runs on the calling thread, so for large inputs in a browser, call it from a Web Worker.
+- **The async functions use separate threads only on the native backends.** The Node addon runs them on Node's thread pool, and React Native on a small pool of its own. The WebAssembly backend runs on the calling thread, so for large inputs in a browser, call it from a Web Worker.
 - **Forcing WebAssembly:** set `GZIP_JS_BACKEND=wasm` in Node.js, or import `@kodespire/gzip-js/wasm` in any runtime.
-- **Your process's own zlib is untouched.** The bundled copy is compiled with its symbols renamed (`Z_PREFIX`), so it never clashes with the zlib inside Node.js, Bun or Electron.
+- **Your process's own zlib is untouched.** The bundled copy is compiled with its symbols renamed (`Z_PREFIX`), so it never clashes with the zlib inside Node.js, Bun or Electron, or the system libz on iOS and Android.
 
 ## Runtimes
 
@@ -203,13 +219,14 @@ An unknown option name throws a `TypeError`. A typo like `{ compressionLevel: 9 
 | Deno 2 | WebAssembly | Linux |
 | Chromium, Firefox, WebKit | WebAssembly | Playwright, through Vite |
 | Cloudflare Workers (`workerd` condition) | WebAssembly | `wrangler dev` (workerd) |
+| React Native 0.84+ on iOS and Android (`react-native` condition) | native (JSI) | iOS simulator, Android emulator |
 
 Prebuilt native binaries cover:
 - macOS arm64 and x64
 - Linux x64 and arm64 (glibc 2.28+ and musl)
 - Windows x64 and arm64
 
-Bundlers that understand `new URL('./gzip.wasm', import.meta.url)`, such as Vite, webpack 5 and Parcel, pick up the WebAssembly file automatically. For anything else, serve `@kodespire/gzip-js/gzip.wasm` yourself and pass its URL to `init()`.
+Bundlers that understand `new URL('./gzip.wasm', import.meta.url)`, such as Vite, webpack 5 and Parcel, pick up the WebAssembly file automatically. For anything else, including Metro for the web, serve `@kodespire/gzip-js/gzip.wasm` yourself and pass its URL to `init()`.
 
 ## Development
 
@@ -223,7 +240,17 @@ npm test
 BROWSERS=chromium npx vitest run -c vitest.browser.config.ts
 ```
 
-All compression logic is in `csrc/gjs.c`, which both builds share. `csrc/addon.cc` (Node-API) and `src/wasm-backend.ts` (WebAssembly) only move bytes in and out. zlib's own `.c` files are compiled directly; there is no configure or CMake step. The tests run every case against both backends. They also check output against independent implementations, in both directions:
+The React Native example app runs a self-test on a simulator or emulator. Its `npm install` packs the package the way npm would publish it, so build `dist/` first:
+
+```sh
+cd example/react-native
+npm install
+(cd ios && bundle install && bundle exec pod install)
+npm run selftest:ios       # boots a simulator if none is running
+npm run selftest:android   # start an emulator first; needs ANDROID_HOME
+```
+
+All compression logic is in `csrc/gjs.c`, which every build shares. `csrc/addon.cc` (Node-API), `cpp/KodespireGzipModule.cpp` (React Native) and `src/wasm-backend.ts` (WebAssembly) only move bytes in and out. zlib's own `.c` files are compiled directly; there is no configure or CMake step. The tests run every case against both backends. They also check output against independent implementations, in both directions:
 - the system `gzip` command
 - Python's `zlib` module, for the zlib and raw formats
 - node:zlib, and `CompressionStream` / `DecompressionStream`, in Node.js and in each browser
