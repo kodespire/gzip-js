@@ -1,6 +1,6 @@
 # Third-party notices
 
-The native addon and `gzip.wasm` in this package are compiled from
+The native addon, the React Native module and `gzip.wasm` in this package are compiled from
 zlib v1.3.2 ([madler/zlib](https://github.com/madler/zlib)), used under the zlib license.
 The sources are unmodified; only the files needed for deflate and inflate are compiled,
 with `Z_PREFIX` so the symbols cannot clash with another copy of zlib in the same process:
