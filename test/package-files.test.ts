@@ -56,7 +56,10 @@ describe('npm package contents', () => {
     expect(Buffer.compare(readFileSync(join(root, 'deps', 'zlib', 'zconf.h.in')), zconf)).toBe(0);
   });
 
-  it('the native sources compile as packed', { skip: spawnSync('cc', ['--version']).status !== 0 }, () => {
+  // Not on Windows: React Native's iOS and Android builds use clang on macOS and Linux,
+  // and a MinGW cc there prints -H paths in another form.
+  const noCc = process.platform === 'win32' || spawnSync('cc', ['--version']).status !== 0;
+  it('the native sources compile as packed', { skip: noCc }, () => {
     // The C files exactly as an app receives them (no deps/zlib/zconf.h), with the
     // include path and defines of the podspec and android/CMakeLists.txt.
     const dir = mkdtempSync(join(tmpdir(), 'gzip-js-pack-'));
