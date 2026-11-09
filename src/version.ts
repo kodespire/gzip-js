@@ -1,6 +1,6 @@
 // Must match deps/zlib (checked by test/version.test.ts).
 /** Version of the bundled zlib library, the same for the native and WebAssembly builds. */
-export const ZLIB_VERSION = '1.3.2';
+export const ZLIB_VERSION = '1.4';
 /** Lowest compression level: 0 stores the data without compressing it. */
 export const MIN_LEVEL = 0;
 /** Highest-ratio compression level. */
