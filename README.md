@@ -5,7 +5,7 @@
 
 Gzip, zlib and raw deflate for Node.js, Bun, Deno, browsers, edge runtimes and React Native, with one API everywhere.
 
-- **The official library.** Compiled from zlib v1.3.2 ([madler/zlib](https://github.com/madler/zlib)), pinned as a git submodule. A weekly job opens a PR when upstream releases.
+- **The official library.** Compiled from zlib v1.4 ([madler/zlib](https://github.com/madler/zlib)), pinned as a git submodule. A weekly job opens a PR when upstream releases.
 - **Native where possible, WebAssembly everywhere else.** Node.js and Bun use a Node-API addon, and React Native uses a JSI module. Browsers, Deno and Workers use WebAssembly built from the same C code. If no prebuilt binary matches your platform, the package switches to WebAssembly on its own.
 - **Same bytes everywhere.** Every build produces identical output for the same input and options, on every platform.
 - **No install scripts.** Prebuilt binaries ship inside the package. `npm install` never downloads or compiles anything.
@@ -166,7 +166,7 @@ Every one of them treats garbage after the data as a problem, either an error or
 | `isGzip(data)` | `true` if `data` starts with a gzip member header (`1f 8b`, deflate, no reserved flags). Does not check the rest. |
 | `init(source?)` | Loads the backend. `source` can be a URL, `Response`, bytes or `WebAssembly.Module` for `gzip.wasm`. |
 | `activeBackend()` | `'native'` or `'wasm'`. |
-| `ZLIB_VERSION`, `MIN_LEVEL`, `MAX_LEVEL`, `DEFAULT_LEVEL` | `'1.3.2'`, `0`, `9`, `6`. |
+| `ZLIB_VERSION`, `MIN_LEVEL`, `MAX_LEVEL`, `DEFAULT_LEVEL` | `'1.4'`, `0`, `9`, `6`. |
 
 **Compress options**
 
